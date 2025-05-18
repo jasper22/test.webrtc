@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC Screen Share</title>
+    <style>
+        video {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            border: 1px solid black;
+        }
+        button {
+            margin: 5px;
+            padding: 10px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebRTC Screen Share</h1>
+
+    <video id="remoteVideo" autoplay playsinline></video> <!-- The video element that will display the remote stream -->
+
+    <div>
+        <button id="startButton">Start</button> <!-- Button to start the screen sharing -->
+        <button id="stopButton" disabled>Stop</button> <!-- Button to stop the screen sharing -->
+    </div>
+
+    <script>
+        let peerConnection; // Represents the WebRTC peer connection [1]
+        let websocket; // Represents the WebSocket connection [1]
+
+        const startButton = document.getElementById('startButton'); // Get the start button element
+        const stopButton = document.getElementById('stopButton'); // Get the stop button element
+        const remoteVideo = document.getElementById('remoteVideo'); // Get the video element
+
+        startButton.addEventListener('click', start); // Add a click listener to the start button
+        stopButton.addEventListener('click', stop); // Add a click listener to the stop button
+
+        async function start() {
+            startButton.disabled = true; // Disable the start button
+            stopButton.disabled = false; // Enable the stop button
+
+            // 1. Establish WebSocket connection.  The WebSocket connection is used for signaling. [4, 5]
+            websocket = new WebSocket("ws://localhost:8080/ws"); // Create a new WebSocket connection
+
+            websocket.onopen = () => { // When the WebSocket connection is open
+                console.log("WebSocket connected");
+                // Request an offer from the server
+                websocket.send("offerreq"); // Send a message to the server to request an offer
+            };
+
+            websocket.onmessage = async (event) => { // When a message is received from the WebSocket connection
+                console.log("WebSocket message received:", event.data);
+                const message = event.data;
+
+                if (!peerConnection) { // If the peer connection does not exist
+                    await createPeerConnection(); // Create a new peer connection
+                }
+
+                try {
+                    // Assuming the server sends back the SDP offer directly.  SDP (Session Description Protocol) is used to negotiate the media capabilities of the peers. [6]
+                    const offer = new RTCSessionDescription({ type: 'offer', sdp: message }); // Create a new SDP offer from the message
+                    await peerConnection.setRemoteDescription(offer); // Set the remote description to the offer [6]
+                    console.log("Remote description set (offer)");
+
+                    // Create and send answer
+                    const answer = await peerConnection.createAnswer(); // Create an answer to the offer [6]
+                    await peerConnection.setLocalDescription(answer); // Set the local description to the answer [6]
+                    console.log("Local description set (answer)");
+
+                    // Send the answer back to the server
+                    websocket.send(answer.sdp); // Send the answer to the server [6]
+                    console.log("Sent answer SDP to server");
+
+                } catch (e) {
+                    console.error("Error handling WebSocket message:", e);
+                }
+            };
+
+            websocket.onerror = (error) => { // When an error occurs on the WebSocket connection
+                console.error("WebSocket error:", error);
+                stop(); // Stop the screen sharing
+            };
+
+            websocket.onclose = () => { // When the WebSocket connection is closed
+                console.log("WebSocket closed");
+                stop(); // Stop the screen sharing
+            };
+        }
+
+        async function createPeerConnection() { // Creates the RTCPeerConnection object and sets up its event handlers. [1]
+            console.log("Creating RTCPeerConnection");
+            peerConnection = new RTCPeerConnection({ // Create a new RTCPeerConnection [1]
+                iceServers: [ // Use a public STUN server to discover the public IP address [5]
+                    {
+                        urls: 'stun:stun.l.google.com:19302' // Use a public STUN server [5]
+                    }
+                ]
+            });
+
+            peerConnection.onicecandidate = (event) => { // When an ICE candidate is generated [5]
+                if (event.candidate) {
+                    console.log("ICE candidate generated:", event.candidate);
+                    // Send ICE candidates to the server
+                    websocket.send(JSON.stringify({ candidate: event.candidate })); // Send the ICE candidate to the server
+                } else {
+                    console.log("ICE gathering complete.");
+                }
+            };
+
+            peerConnection.ontrack = (event) => { // When a track is received [1]
+                console.log("Track received:", event.track);
+                console.log("Received streams:", event.streams);
+                if (event.streams && event.streams[0]) { // If there is a stream
+                    if (remoteVideo.srcObject !== event.streams[0]) { // If the video element does not have the stream
+                        remoteVideo.srcObject = event.streams[0]; // Set the video element's source to the stream
+                        console.log("Remote video stream attached to video element");
+
+                        // Optional: Check if video is playing
+                        remoteVideo.onplaying = () => { // When the video is playing
+                            console.log("Video is playing!");
+                        };
+                        remoteVideo.onwaiting = () => { // When the video is waiting
+                            console.log("Video is waiting/buffering...");
+                        };
+                        remoteVideo.onerror = (e) => { // When an error occurs on the video element
+                            console.error("Video playback error:", e);
+                        };
+
+                    }
+                } else {
+                    console.warn("Received track event with no streams or empty streams array.");
+                }
+            };
+
+            peerConnection.oniceconnectionstatechange = () => { // When the ICE connection state changes
+                console.log("ICE connection state:", peerConnection.iceConnectionState);
+            };
+
+            peerConnection.onconnectionstatechange = () => { // When the connection state changes
+                console.log("Connection state:", peerConnection.connectionState);
+                if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'closed') { // If the connection state is disconnected, failed, or closed
+                    console.log("PeerConnection state changed to disconnected, failed, or closed. Stopping.");
+                    stop(); // Stop the screen sharing
+                }
+            };
+
+            console.log("RTCPeerConnection created.");
+        }
+
+        function stop() { // Stop the screen sharing
+            startButton.disabled = false; // Enable the start button
+            stopButton.disabled = true; // Disable the stop button
+
+            if (websocket) { // If the WebSocket connection exists
+                websocket.close(); // Close the WebSocket connection
+                websocket = null; // Set the WebSocket connection to null
+            }
+
+            if (peerConnection) { // If the peer connection exists
+                peerConnection.close(); // Close the peer connection
+                peerConnection = null; // Set the peer connection to null
+            }
+
+            if (remoteVideo.srcObject) { // If the video element has a source
+                remoteVideo.srcObject.getTracks().forEach(track => track.stop()); // Stop each track in the stream
+                remoteVideo.srcObject = null; // Set the video element's source to null
+            }
+
+            console.log("Stopped");
+        }
+    </script>
+</body>
+</html>
