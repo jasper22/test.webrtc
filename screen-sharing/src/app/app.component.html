@@ -1,0 +1,8 @@
+<h1>{{ title }}</h1>
+
+<video #remoteVideo autoplay playsinline width="640" height="480"></video>
+
+<div>
+  <button (click)="startStream()">Start</button>
+  <button (click)="stopStream()" disabled>Stop</button>
+</div>

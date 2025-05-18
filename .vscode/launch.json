@@ -1,15 +1,53 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Launch Package",
-            "type": "go",
-            "request": "launch",
-            "mode": "auto",
-            "program": "${workspaceFolder}"
-        }
-    ]
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Angular Dev Server",
+      "type": "node-terminal",
+      "request": "launch",
+      // Assumes your Angular project's package.json has a "start" script like "ng serve"
+      "command": "npm start",
+      "cwd": "${workspaceFolder}/screen-sharing",
+      // This action will attempt to open your default browser when Angular is ready
+      "serverReadyAction": {
+        "pattern": "listening on.*localhost:([0-9]+)", // Common pattern for dev servers
+        // Or a more Angular-specific pattern:
+        // "pattern": "Angular Live Development Server is listening on localhost:([0-9]+)",
+        "uriFormat": "http://localhost:%s",
+        "action": "openExternally"
+      },
+      "presentation": {
+        "group": "group1", // Assign to a group to run in the same terminal group if desired
+        "order": 1
+      }
+    },
+    {
+      "name": "Launch Go API",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      // IMPORTANT: Adjust 'program' to point to your Go application's main file or package.
+      // Example: "${workspaceFolder}/main.go" or "${workspaceFolder}/cmd/server/main.go"
+      "program": "${workspaceFolder}/server/main.go",
+      // Adjust 'cwd' if your Go application is in a subdirectory and needs a specific working directory.
+      "cwd": "${workspaceFolder}",
+      "env": {},
+      "args": [],
+      "presentation": {
+        "group": "group1",
+        "order": 2
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Launch Angular + Go",
+      // This will run both configurations defined above when selected.
+      "configurations": ["Launch Angular Dev Server", "Launch Go API"],
+      "stopAll": true // If you stop one, it stops the other.
+    }
+  ]
 }
