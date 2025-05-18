@@ -4,6 +4,12 @@
 
 This document outlines the design and implementation of a simple WebRTC screen sharing application. The application consists of a Go-based server that captures the screen of a virtual machine (VM) and an HTML page with a video player that displays the streamed content. This project is designed to be educational, providing students with a practical understanding of WebRTC and video streaming concepts.
 
+---
+**checkout `angular` branch for `Angular 19` version of web page**
+
+---
+
+
 ## 2. Goals
 
 *   Provide a basic, functional screen sharing application using WebRTC.
